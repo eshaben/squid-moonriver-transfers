@@ -1,7 +1,5 @@
-import * as ss58 from "@subsquid/ss58";
 import {
   EventHandlerContext,
-  Store,
   SubstrateProcessor,
 } from "@subsquid/substrate-processor";
 import { lookupArchive } from "@subsquid/archive-registry";
@@ -12,8 +10,8 @@ const processor = new SubstrateProcessor("moonbeam-asset-transfers");
 
 processor.setBatchSize(500);
 processor.setDataSource({
-  archive: lookupArchive("moonbeam")[0].url,
-  chain: "wss://moonbeam.api.onfinality.io/public-ws",
+  archive: lookupArchive("moonriver")[0].url,
+  chain: "wss://moonriver.api.onfinality.io/public-ws",
 });
 processor.setBlockRange({from: 950000})
 
