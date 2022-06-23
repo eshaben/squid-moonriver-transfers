@@ -1,10 +1,26 @@
 import assert from 'assert'
 import {EventContext, Result, deprecateLatest} from './support'
+import * as v1101 from './v1101'
 import * as v1201 from './v1201'
 
 export class AssetsBurnedEvent {
   constructor(private ctx: EventContext) {
     assert(this.ctx.event.name === 'assets.Burned')
+  }
+
+  /**
+   * Some assets were destroyed. \[asset_id, owner, balance\]
+   */
+  get isV1101(): boolean {
+    return this.ctx._chain.getEventHash('assets.Burned') === '6af5d1bf4b3418a7ca0383f4cc463f83e54eeee335be7c8c2ddadb7e58a924dc'
+  }
+
+  /**
+   * Some assets were destroyed. \[asset_id, owner, balance\]
+   */
+  get asV1101(): [bigint, v1101.AccountId20, bigint] {
+    assert(this.isV1101)
+    return this.ctx._chain.decodeEvent(this.ctx.event)
   }
 
   /**
@@ -39,6 +55,21 @@ export class AssetsIssuedEvent {
   }
 
   /**
+   * Some assets were issued. \[asset_id, owner, total_supply\]
+   */
+  get isV1101(): boolean {
+    return this.ctx._chain.getEventHash('assets.Issued') === '6af5d1bf4b3418a7ca0383f4cc463f83e54eeee335be7c8c2ddadb7e58a924dc'
+  }
+
+  /**
+   * Some assets were issued. \[asset_id, owner, total_supply\]
+   */
+  get asV1101(): [bigint, v1101.AccountId20, bigint] {
+    assert(this.isV1101)
+    return this.ctx._chain.decodeEvent(this.ctx.event)
+  }
+
+  /**
    * Some assets were issued.
    */
   get isV1201(): boolean {
@@ -67,6 +98,21 @@ export class AssetsIssuedEvent {
 export class AssetsTransferredEvent {
   constructor(private ctx: EventContext) {
     assert(this.ctx.event.name === 'assets.Transferred')
+  }
+
+  /**
+   * Some assets were transferred. \[asset_id, from, to, amount\]
+   */
+  get isV1101(): boolean {
+    return this.ctx._chain.getEventHash('assets.Transferred') === 'abbbc10bc7346d8c9b28e542437398fdb02f602123d38cd8b28c364093fc9ddf'
+  }
+
+  /**
+   * Some assets were transferred. \[asset_id, from, to, amount\]
+   */
+  get asV1101(): [bigint, v1101.AccountId20, v1101.AccountId20, bigint] {
+    assert(this.isV1101)
+    return this.ctx._chain.decodeEvent(this.ctx.event)
   }
 
   /**

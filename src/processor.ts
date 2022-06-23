@@ -6,14 +6,14 @@ import { lookupArchive } from "@subsquid/archive-registry";
 import { Transfer, AssetStatus } from "./model";
 import { AssetsBurnedEvent, AssetsIssuedEvent, AssetsTransferredEvent } from "./types/events";
 
-const processor = new SubstrateProcessor("moonbeam-asset-transfers");
+const processor = new SubstrateProcessor("moonriver-asset-transfers");
 
 processor.setBatchSize(500);
 processor.setDataSource({
   archive: lookupArchive("moonriver")[0].url,
   chain: "wss://moonriver.api.onfinality.io/public-ws",
 });
-processor.setBlockRange({from: 950000})
+processor.setBlockRange({from: 1280000})
 
 processor.addEventHandler("assets.Transferred", async (ctx: EventHandlerContext) => {
   const event = new AssetsTransferredEvent(ctx).asV1201;
