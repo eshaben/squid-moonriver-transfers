@@ -16,7 +16,7 @@ processor.setDataSource({
 processor.setBlockRange({from: 1280000})
 
 processor.addEventHandler("assets.Transferred", async (ctx: EventHandlerContext) => {
-  const event = new AssetsTransferredEvent(ctx).asV1201;
+  const event = getTransferredEvent(ctx);
 
   const transferred = new Transfer();
   transferred.id = ctx.event.id;
@@ -29,8 +29,19 @@ processor.addEventHandler("assets.Transferred", async (ctx: EventHandlerContext)
   await ctx.store.save(transferred);
 });
 
+function getTransferredEvent(ctx: EventHandlerContext) {
+  const event = new AssetsTransferredEvent(ctx);
+
+  if (event.isV1101){
+    const [asset_id, from, to, amount] = event.asV1101;
+    return { assetId: asset_id, from, to, amount };
+  } else {
+    return event.asV1201;
+  }
+}
+
 processor.addEventHandler("assets.Issued", async (ctx: EventHandlerContext) => {
-  const event = new AssetsIssuedEvent(ctx).asV1201;
+  const event = getIssuedEvent(ctx);
 
   const transferred = new Transfer();
   transferred.id = ctx.event.id;
@@ -43,8 +54,19 @@ processor.addEventHandler("assets.Issued", async (ctx: EventHandlerContext) => {
   await ctx.store.save(transferred);
 });
 
+function getIssuedEvent(ctx: EventHandlerContext) {
+  const event = new AssetsIssuedEvent(ctx);
+
+  if (event.isV1101){
+    const [asset_id, owner, total_supply] = event.asV1101;
+    return { assetId: asset_id, owner, totalSupply: total_supply };
+  } else {
+    return event.asV1201;
+  }
+}
+
 processor.addEventHandler("assets.Burned", async (ctx: EventHandlerContext) => {
-  const event = new AssetsBurnedEvent(ctx).asV1201;
+  const event = getBurnedEvent(ctx);
 
   const transferred = new Transfer();
   transferred.id = ctx.event.id;
@@ -56,5 +78,16 @@ processor.addEventHandler("assets.Burned", async (ctx: EventHandlerContext) => {
 
   await ctx.store.save(transferred);
 });
+
+function getBurnedEvent(ctx: EventHandlerContext) {
+  const event = new AssetsBurnedEvent(ctx);
+
+  if (event.isV1101){
+    const [asset_id, owner, balance] = event.asV1101;
+    return { assetId: asset_id, owner, balance };
+  } else {
+    return event.asV1201;
+  }
+}
 
 processor.run();
