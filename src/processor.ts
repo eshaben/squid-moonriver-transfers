@@ -1,93 +1,114 @@
+import { Store, TypeormDatabase } from "@subsquid/typeorm-store";
 import {
-  EventHandlerContext,
-  SubstrateProcessor,
+  BatchContext,
+  BatchProcessorItem,
+  SubstrateBatchProcessor,
+  toHex,
 } from "@subsquid/substrate-processor";
 import { lookupArchive } from "@subsquid/archive-registry";
 import { Transfer, AssetStatus } from "./model";
-import { AssetsBurnedEvent, AssetsIssuedEvent, AssetsTransferredEvent } from "./types/events";
+import {
+  AssetsIssuedEvent,
+  AssetsBurnedEvent,
+  AssetsTransferredEvent,
+} from "./types/events";
 
-const processor = new SubstrateProcessor("moonriver-asset-transfers");
+const processor = new SubstrateBatchProcessor()
+  .setBatchSize(500)
+  .setDataSource({
+    archive: lookupArchive("moonriver", { release: "FireSquid" }),
+  })
+  .setBlockRange({ from: 950000 })
+  .addEvent("Assets.Issued")
+  .addEvent("Assets.Transferred")
+  .addEvent("Assets.Burned");
 
-processor.setBatchSize(500);
-processor.setDataSource({
-  archive: lookupArchive("moonriver")[0].url,
-  chain: "wss://moonriver.api.onfinality.io/public-ws",
-});
-processor.setBlockRange({from: 1280000})
+processor.run(new TypeormDatabase(), async (ctx) => {
+  const assetTransfers = getTransfers(ctx);
 
-processor.addEventHandler("assets.Transferred", async (ctx: EventHandlerContext) => {
-  const event = getTransferredEvent(ctx);
-
-  const transferred = new Transfer();
-  transferred.id = ctx.event.id;
-  transferred.assetId = event.assetId.toString();
-  transferred.balance = event.amount;
-  transferred.from = ctx.event.params[1].value as string;
-  transferred.to = ctx.event.params[2].value as string;
-  transferred.status = AssetStatus.TRANSFERRED;
-
-  await ctx.store.save(transferred);
+  await ctx.store.insert(assetTransfers);
 });
 
-function getTransferredEvent(ctx: EventHandlerContext) {
-  const event = new AssetsTransferredEvent(ctx);
+type Item = BatchProcessorItem<typeof processor>;
+type Ctx = BatchContext<Store, Item>;
 
-  if (event.isV1101){
-    const [asset_id, from, to, amount] = event.asV1101;
-    return { assetId: asset_id, from, to, amount };
-  } else {
-    return event.asV1201;
+function getTransfers(ctx: Ctx): Transfer[] {
+  const assetTransfers: Transfer[] = [];
+
+  for (const block of ctx.blocks) {
+    for (const item of block.items) {
+      if (item.name === "Assets.Transferred") {
+        const event = getTransferredEvent(ctx, item.event);
+
+        const transferred = new Transfer();
+        transferred.id = item.event.id;
+        transferred.assetId = event.assetId.toString();
+        transferred.balance = event.amount;
+        transferred.from = toHex(event.from);
+        transferred.to = toHex(event.to);
+        transferred.status = AssetStatus.TRANSFERRED;
+
+        assetTransfers.push(transferred);
+      }
+      if (item.name === "Assets.Issued") {
+        const event = getIssuedEvent(ctx, item.event);
+
+        const transferred = new Transfer();
+        transferred.id = item.event.id;
+        transferred.assetId = event.assetId.toString();
+        transferred.to = toHex(event.owner);
+        transferred.from = "";
+        transferred.balance = event.totalSupply;
+        transferred.status = AssetStatus.ISSUED;
+
+        assetTransfers.push(transferred);
+      }
+      if (item.name === "Assets.Burned") {
+        const event = getBurnedEvent(ctx, item.event);
+
+        const transferred = new Transfer();
+        transferred.id = item.event.id;
+        transferred.assetId = event.assetId.toString();
+        transferred.balance = event.balance;
+        transferred.from = toHex(event.owner);
+        transferred.to = "";
+        transferred.status = AssetStatus.BURNED;
+
+        assetTransfers.push(transferred);
+      }
+    }
   }
+
+  return assetTransfers;
 }
 
-processor.addEventHandler("assets.Issued", async (ctx: EventHandlerContext) => {
-  const event = getIssuedEvent(ctx);
+function getTransferredEvent(ctx: Ctx, ev: any) {
+  const event = new AssetsTransferredEvent(ctx, ev);
 
-  const transferred = new Transfer();
-  transferred.id = ctx.event.id;
-  transferred.assetId = event.assetId.toString();
-  transferred.to = ctx.event.params[1].value as string;
-  transferred.from = "";
-  transferred.balance = event.totalSupply;
-  transferred.status = AssetStatus.ISSUED;
-
-  await ctx.store.save(transferred);
-});
-
-function getIssuedEvent(ctx: EventHandlerContext) {
-  const event = new AssetsIssuedEvent(ctx);
-
-  if (event.isV1101){
-    const [asset_id, owner, total_supply] = event.asV1101;
-    return { assetId: asset_id, owner, totalSupply: total_supply };
-  } else {
-    return event.asV1201;
+  if (event.isV1101) {
+    const [assetId, from, to, amount] = event.asV1101;
+    return { assetId, from, to, amount };
   }
+  return event.asV1201;
 }
 
-processor.addEventHandler("assets.Burned", async (ctx: EventHandlerContext) => {
-  const event = getBurnedEvent(ctx);
+function getIssuedEvent(ctx: Ctx, ev: any) {
+  const event = new AssetsIssuedEvent(ctx, ev);
 
-  const transferred = new Transfer();
-  transferred.id = ctx.event.id;
-  transferred.assetId = event.assetId.toString();
-  transferred.balance =  event.balance;
-  transferred.from = ctx.event.params[1].value as string;
-  transferred.to = "";
-  transferred.status = AssetStatus.BURNED;
-
-  await ctx.store.save(transferred);
-});
-
-function getBurnedEvent(ctx: EventHandlerContext) {
-  const event = new AssetsBurnedEvent(ctx);
-
-  if (event.isV1101){
-    const [asset_id, owner, balance] = event.asV1101;
-    return { assetId: asset_id, owner, balance };
-  } else {
-    return event.asV1201;
+  if (event.isV1101) {
+    const [assetId, owner, totalSupply] = event.asV1101;
+    return { assetId, owner, totalSupply };
   }
+  return event.asV1201;
 }
 
-processor.run();
+function getBurnedEvent(ctx: Ctx, ev: any) {
+  const event = new AssetsBurnedEvent(ctx, ev);
+
+  if (event.isV1101) {
+    const [assetId, owner, balance] = event.asV1101;
+    return { assetId, owner, balance };
+  }
+
+  return event.asV1201;
+}
