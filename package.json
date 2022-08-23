@@ -1,5 +1,5 @@
 {
-  "name": "moonbeam-transfers",
+  "name": "moonriver-transfers",
   "private": true,
   "scripts": {
     "build": "rm -rf lib && tsc",
